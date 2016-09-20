@@ -26,6 +26,7 @@
 */
 
 #include <cereal/cereal.hpp>
+#include <cereal/macros.hpp>
 #include <cereal/archives/binary.hpp>
 #include <cereal/archives/json.hpp>
 
@@ -65,16 +66,7 @@ struct Person
     std::wstring name;
     std::string city;
 
-    template <class Archive>
-    void serialize(Archive & ar)
-    {
-        ar(CEREAL_NVP(sz)
-            , CEREAL_NVP(wsz)
-            , CEREAL_NVP(age)
-            , CEREAL_NVP(name)
-            , CEREAL_NVP(city)
-        );
-    }
+    CEREAL_META(sz, wsz, age, name, city);
 };
 
 // ###################################
@@ -215,6 +207,7 @@ struct SubFixture
   float c;
   double d;
   std::string s;
+
 
     template<class Archive>
       void serialize(Archive & ar)
