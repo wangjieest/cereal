@@ -46,6 +46,37 @@
 #include <iomanip>
 #include <string>
 
+
+
+struct DDD {
+    int i;
+    template <class Archive>
+    void serialize(Archive & ar)
+    {
+        ar(CEREAL_NVP(i));
+    }
+};
+
+struct Person
+{
+    char	sz[4][4][4];
+    wchar_t wsz[12];
+    int age;
+    std::wstring name;
+    std::string city;
+
+    template <class Archive>
+    void serialize(Archive & ar)
+    {
+        ar(CEREAL_NVP(sz)
+            , CEREAL_NVP(wsz)
+            , CEREAL_NVP(age)
+            , CEREAL_NVP(name)
+            , CEREAL_NVP(city)
+        );
+    }
+};
+
 // ###################################
 struct Test1
 {
@@ -339,6 +370,49 @@ CEREAL_SPECIALIZE_FOR_ALL_ARCHIVES( Bla, cereal::specialization::non_member_load
 // ######################################################################
 int main()
 {
+
+    std::cout << std::boolalpha << std::endl;
+    {
+        std::ofstream os("file.json");
+        cereal::JSONOutputArchive oar(os);
+
+        Person p = { { "多", "维", "数", "组" }, L"不一样", 18, L"我是宽字节中文", "窄的" };
+        oar(p);
+        std::cout << std::boolalpha << std::endl;
+    }
+
+    {
+        std::ifstream is("file.json");
+        cereal::JSONInputArchive iar(is);
+        Person person;
+        try
+        {
+            iar(person);
+        }
+        catch (cereal::Exception&)
+        {
+            std::cout << std::boolalpha << std::endl;
+        }
+        std::cout << std::boolalpha << std::endl;
+    }
+
+    {//wrong deserialize
+        std::ifstream is("file.json");
+        cereal::JSONInputArchive iar(is);
+
+        //反序列化由于buff是任意的,可能会失败.
+        DDD person;
+        try
+        {
+            iar(person);
+        }
+        catch (cereal::Exception&)
+        {
+            std::cout << std::boolalpha << std::endl;
+        }
+        std::cout << std::boolalpha << std::endl;
+    }
+
   std::cout << std::boolalpha << std::endl;
 
   {

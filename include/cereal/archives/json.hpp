@@ -31,7 +31,17 @@
 
 #include <cereal/cereal.hpp>
 #include <cereal/details/util.hpp>
-
+//#define JSON_UTILS_WCHAR_TO_UTF8
+#ifdef JSON_UTILS_WCHAR_TO_UTF8
+//UTF8
+#include <codecvt>
+#else
+//GBK
+#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+#define NOMINMAX // no min max macro
+#include <windows.h>
+#undef NOMINMAX // no min max macro
+#endif
 namespace cereal
 {
   //! An exception thrown when rapidjson fails an internal assertion
@@ -245,6 +255,51 @@ namespace cereal
       void saveValue(std::string const & s) { itsWriter.String(s.c_str(), static_cast<rapidjson::SizeType>( s.size() )); }
       //! Saves a const char * to the current node
       void saveValue(char const * s)        { itsWriter.String(s);                                                       }
+      //! Saves a const char * to the current node
+      void saveValue(wchar_t const * s) { 
+          std::string msg;
+#ifdef JSON_UTILS_WCHAR_TO_UTF8
+          std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> cvt;
+          msg = cvt.to_bytes(s); // utf-16 to utf-8
+#else
+          msg.resize(::WideCharToMultiByte(936, 0, s, -1, NULL, 0, NULL, NULL));
+          ::WideCharToMultiByte(936, 0, s, -1, &msg[0], msg.size(), NULL, NULL);
+#endif
+          itsWriter.String(msg.c_str(), static_cast<rapidjson::SizeType>(msg.size()));
+      }
+      //! Saves a string to the current node char[]
+      template<size_t N>
+      void saveValue(char(&s)[N]) {
+          itsWriter.String(s, static_cast<rapidjson::SizeType>(N));
+      }
+	  
+	   //! Saves a string to the current node wchar_t[]
+      template<size_t N>
+      void saveValue(wchar_t(&s)[N]) {
+          std::string msg;
+#ifdef JSON_UTILS_WCHAR_TO_UTF8
+          std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> cvt;
+          msg = cvt.to_bytes(s); // utf-16 to utf-8
+#else
+          msg.resize(::WideCharToMultiByte(936, 0, s, N, NULL, 0, NULL, NULL));
+          ::WideCharToMultiByte(936, 0, s, N, &msg[0], msg.size(), NULL, NULL);
+#endif
+          itsWriter.String(msg.c_str(), static_cast<rapidjson::SizeType>(msg.size()));
+      }
+
+      //! Saves a wstring to the current node wstring
+      void saveValue(const std::wstring& s) {
+          std::string msg;
+#ifdef JSON_UTILS_WCHAR_TO_UTF8
+          std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> cvt;
+          msg = cvt.to_bytes(s); // utf-16 to utf-8
+#else
+          msg.resize(::WideCharToMultiByte(936, 0, s.c_str(), s.size(), NULL, 0, NULL, NULL));
+          ::WideCharToMultiByte(936, 0, s.c_str(), s.size(), &msg[0], msg.size(), NULL, NULL);
+#endif
+          itsWriter.String(msg.c_str(), static_cast<rapidjson::SizeType>(msg.size()));
+      }
+	  
       //! Saves a nullptr to the current node
       void saveValue(std::nullptr_t)        { itsWriter.Null();                                                          }
 
@@ -632,6 +687,19 @@ namespace cereal
       void loadValue(double & val)      { search(); val = itsIteratorStack.back().value().GetDouble(); ++itsIteratorStack.back(); }
       //! Loads a value from the current node - string overload
       void loadValue(std::string & val) { search(); val = itsIteratorStack.back().value().GetString(); ++itsIteratorStack.back(); }
+      //! Loads a value from the current node - string overload
+      void loadValue(std::wstring & val) {
+          search();
+          const char* str = itsIteratorStack.back().value().GetString();
+#ifdef JSON_UTILS_WCHAR_TO_UTF8
+          std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> cvt;
+          val = cvt.from_bytes(str); // utf-8 to utf-16
+#else
+          val.resize(::MultiByteToWideChar(936, 0, str, -1, NULL, 0));
+          ::MultiByteToWideChar(936, 0, str, -1, &val[0], val.size());
+#endif
+          ++itsIteratorStack.back(); 
+      }
       //! Loads a nullptr from the current node
       void loadValue(std::nullptr_t&)   { search(); CEREAL_RAPIDJSON_ASSERT(itsIteratorStack.back().value().IsNull()); ++itsIteratorStack.back(); }
 

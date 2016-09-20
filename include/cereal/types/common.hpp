@@ -36,10 +36,17 @@ namespace cereal
 {
   namespace common_detail
   {
+#define COMMON_ARRAY_IS_CHAR_OR_WCHAR(T) \
+    (std::is_same<typename std::remove_all_extents<T>::type, char>::value \
+    || std::is_same<typename std::remove_all_extents<T>::type, wchar_t>::value)
+      
     //! Serialization for arrays if BinaryData is supported and we are arithmetic
     /*! @internal */
     template <class Archive, class T> inline
-    void serializeArray( Archive & ar, T & array, std::true_type /* binary_supported */ )
+        typename std::enable_if<!traits::is_text_archive<Archive>::value 
+        || (traits::is_text_archive<Archive>::value&&!COMMON_ARRAY_IS_CHAR_OR_WCHAR(T)),
+        void>::type
+        serializeArray(Archive & ar, T & array, std::true_type /* binary_supported */)
     {
       ar( binary_data( array, sizeof(array) ) );
     }
@@ -47,11 +54,78 @@ namespace cereal
     //! Serialization for arrays if BinaryData is not supported or we are not arithmetic
     /*! @internal */
     template <class Archive, class T> inline
-    void serializeArray( Archive & ar, T & array, std::false_type /* binary_supported */ )
+        typename std::enable_if<!traits::is_text_archive<Archive>::value 
+        || (traits::is_text_archive<Archive>::value&&!COMMON_ARRAY_IS_CHAR_OR_WCHAR(T)),
+        void>::type
+        serializeArray(Archive & ar, T & array, std::false_type /* binary_not_supported */)
     {
       for( auto & i : array )
         ar( i );
     }
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+    struct type_save{};
+    struct type_load{};
+    //Serialization only for raw char[][]... or wchar_t[][]...
+    //char[]
+    template <class Archive, size_t N> inline
+        void serializeArray(Archive & ar, char(&array)[N], type_save)
+    {
+        ar(std::string(array, N));
+    }
+    template <class Archive, size_t N> inline
+        void serializeArray(Archive & ar, char(&array)[N], type_load)
+    {
+        std::string data;
+        ar(data);
+        strncpy_s(array, data.c_str(), data.size());
+    }
+
+    //wchar_t[]
+    template <class Archive, size_t N> inline
+        void serializeArray(Archive & ar, wchar_t(&array)[N], type_save)
+    {
+        ar(std::wstring(array, N));
+    }
+    template <class Archive, size_t N> inline
+        void serializeArray(Archive & ar, wchar_t(&array)[N], type_load)
+    {
+        std::wstring data;
+        ar(data);
+        wcsncpy_s(array, data.c_str(), data.size());
+    }
+
+    template <class Archive, class T, class I> inline
+        typename std::enable_if<traits::is_text_archive<Archive>::value
+        &&COMMON_ARRAY_IS_CHAR_OR_WCHAR(T)
+        &&!std::is_same<typename std::remove_extent<T>::type, char>::value 
+        &&!std::is_same<typename std::remove_extent<T>::type, wchar_t>::value
+        , void>::type
+        serializeArray(Archive & ar, T & array, const I&i)
+    {
+        for (auto & a : array)
+            serializeArray(ar, a, i);
+    }
+
+    //Serialization only for raw char[][]... or wchar_t[][]...
+    template <class Archive, class T, class I> inline
+        typename std::enable_if<traits::is_text_archive<Archive>::value
+        &&COMMON_ARRAY_IS_CHAR_OR_WCHAR(T)
+        &&(std::is_same<typename std::remove_extent<T>::type, char>::value
+            ||std::is_same<typename std::remove_extent<T>::type, wchar_t>::value)
+        , void>::type
+        serializeArray(Archive & ar, T & array, const I&)
+    {
+        serializeArray(ar, array,
+            std::conditional<
+            std::is_base_of<::cereal::detail::OutputArchiveBase, Archive>::value,
+            type_save, type_load>::type());
+    }
+
+
+////////////////////////////////////////////////////////////////////////////////
 
     namespace
     {
